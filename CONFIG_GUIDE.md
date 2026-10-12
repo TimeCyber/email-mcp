@@ -323,13 +323,13 @@
 - `get_recent_emails` - 获取最近邮件列表
 - `get_email_content` - 查看邮件详情
 
-### 自动配置功能
-- `setup_email_account` - 自动设置邮箱账号
+### 配置与诊断
 - `list_supported_providers` - 列出支持的邮箱类型
 - `test_email_connection` - 测试连接
 
-### 高级功能
-- `configure_email_server` - 手动配置服务器（高级用户）
+账号、授权码与服务器地址由本机启动环境或 `.env` 提供；修改后重启服务。自动配置使用 `EMAIL_USER`、`EMAIL_PASSWORD` 和可选的 `EMAIL_TYPE`，自定义服务器使用 `EMAIL_SMTP_HOST`、`EMAIL_IMAP_HOST` 等环境变量。`setup_email_account` 和 `configure_email_server` 已从 MCP 工具接口移除。
+
+SMTP 强制加密并验证证书；IMAP/POP3 使用隐式 TLS，请配置 TLS 端口。文件附件需设置 `EMAIL_ATTACHMENTS_DIR`，文件的实际路径须位于该批准目录内；Base64 附件可直接使用。整封邮件的附件总大小上限为 25 MiB。邮件库的直接文件读取和 URL 获取已关闭。完整迁移说明见 [README 安全边界与迁移](README.md#-安全边界与迁移)。
 
 ## ⚠️ 注意事项
 

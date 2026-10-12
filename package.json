@@ -10,8 +10,8 @@
   "scripts": {
     "start": "node index.js",
     "dev": "node --watch index.js",
-    "test": "node test-auto-config.js",
-    "test:all": "node test-auto-config.js",
+    "test": "node --test test-security.js",
+    "test:all": "npm test",
     "test:gmail": "node -e \"import('./test-auto-config.js').then(m => m.testGmailConfig().catch(console.error))\"",
     "test:qq": "node -e \"import('./test-auto-config.js').then(m => m.testQQAutoConfig().catch(console.error))\"",
     "test:163": "node -e \"import('./test-auto-config.js').then(m => m.testAutoConfig().catch(console.error))\"",
@@ -47,7 +47,7 @@
   },
   "homepage": "https://github.com/TimeCyber/email-mcp#readme",
   "engines": {
-    "node": ">=16.0.0"
+    "node": ">=20.19.0"
   },
   "files": [
     "index.js",
@@ -59,11 +59,11 @@
     "access": "public"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@modelcontextprotocol/sdk": "1.32.1",
     "dotenv": "^17.4.2",
-    "imap": "^0.8.17",
-    "mailparser": "^3.9.8",
-    "nodemailer": "^8.0.7",
+    "imap": "0.8.17",
+    "mailparser": "3.9.38",
+    "nodemailer": "10.1.0",
     "poplib": "^0.1.7"
   },
   "devDependencies": {
