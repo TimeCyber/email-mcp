@@ -8,16 +8,22 @@ import Imap from 'imap';
 import { simpleParser } from 'mailparser';
 import POP3Client from 'poplib';
 import dotenv from 'dotenv';
+import fs from 'node:fs/promises';
+import { constants } from 'node:fs';
+import { isAbsolute, relative, resolve, sep } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 // 加载环境变量
-dotenv.config();
+dotenv.config({ quiet: true });
+
+const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
 
 // 邮箱配置映射
 const EMAIL_CONFIGS = {
   'qq': {
     name: 'QQ邮箱',
     domains: ['qq.com'],
-    smtp: { host: 'smtp.qq.com', port: 587, secure: false },
+    smtp: { host: 'smtp.qq.com', port: 465, secure: true },
     imap: { host: 'imap.qq.com', port: 993, secure: true },
     pop3: { host: 'pop.qq.com', port: 995, secure: true },
     usePOP3: false
@@ -111,7 +117,7 @@ class UniversalEmailMCPServer {
   detectEmailProvider(email, manualType = null) {
     // 优先使用手动指定的邮箱类型
     if (manualType && EMAIL_CONFIGS[manualType]) {
-      console.log(`使用手动指定的邮箱类型: ${manualType} (${EMAIL_CONFIGS[manualType].name})`);
+      console.error(`使用手动指定的邮箱类型: ${manualType} (${EMAIL_CONFIGS[manualType].name})`);
       return manualType;
     }
 
@@ -121,12 +127,12 @@ class UniversalEmailMCPServer {
     
     for (const [provider, config] of Object.entries(EMAIL_CONFIGS)) {
       if (config.domains.includes(domain)) {
-        console.log(`自动检测到邮箱类型: ${provider} (${config.name})`);
+        console.error(`自动检测到邮箱类型: ${provider} (${config.name})`);
         return provider;
       }
     }
     
-    console.log(`未能识别邮箱类型，域名: ${domain}`);
+    console.error(`未能识别邮箱类型，域名: ${domain}`);
     return null;
   }
 
@@ -245,77 +251,12 @@ class UniversalEmailMCPServer {
             }
           },
           {
-            name: 'setup_email_account',
-            description: '设置邮箱账号（自动识别邮箱类型并配置服务器）',
-            inputSchema: {
-              type: 'object',
-              properties: {
-                email: {
-                  type: 'string',
-                  description: '邮箱地址（如 user@qq.com）'
-                },
-                password: {
-                  type: 'string',
-                  description: '邮箱密码或授权码'
-                },
-                provider: {
-                  type: 'string',
-                  enum: ['qq', '163', 'gmail', 'outlook', 'exmail', 'aliyun', 'sina', 'sohu'], // 暂时注释掉: 'netease-enterprise'
-                  description: '邮箱提供商（可选，不填写则自动识别）'
-                }
-              },
-              required: ['email', 'password']
-            }
-          },
-          {
             name: 'list_supported_providers',
             description: '列出支持的邮箱提供商',
             inputSchema: {
               type: 'object',
               properties: {},
               required: []
-            }
-          },
-          {
-            name: 'configure_email_server',
-            description: '手动配置邮箱服务器设置（高级用户使用）',
-            inputSchema: {
-              type: 'object',
-              properties: {
-                smtpHost: {
-                  type: 'string',
-                  description: 'SMTP服务器地址'
-                },
-                smtpPort: {
-                  type: 'number',
-                  description: 'SMTP端口'
-                },
-                smtpSecure: {
-                  type: 'boolean',
-                  description: '是否使用SSL'
-                },
-                imapHost: {
-                  type: 'string',
-                  description: 'IMAP服务器地址'
-                },
-                imapPort: {
-                  type: 'number',
-                  description: 'IMAP端口'
-                },
-                imapSecure: {
-                  type: 'boolean',
-                  description: '是否使用SSL'
-                },
-                user: {
-                  type: 'string',
-                  description: '邮箱账号'
-                },
-                password: {
-                  type: 'string',
-                  description: '邮箱密码或授权码'
-                }
-              },
-              required: ['user', 'password']
             }
           },
           {
@@ -349,12 +290,8 @@ class UniversalEmailMCPServer {
             return await this.getRecentEmails(args);
           case 'get_email_content':
             return await this.getEmailContent(args);
-          case 'setup_email_account':
-            return await this.setupEmailAccount(args);
           case 'list_supported_providers':
             return await this.listSupportedProviders(args);
-          case 'configure_email_server':
-            return await this.configureEmailServer(args);
           case 'test_email_connection':
             return await this.testConnection(args);
           default:
@@ -362,6 +299,7 @@ class UniversalEmailMCPServer {
         }
       } catch (error) {
         return {
+          isError: true,
           content: [
             {
               type: 'text',
@@ -386,11 +324,15 @@ class UniversalEmailMCPServer {
             user: process.env.EMAIL_USER || process.env.WECHAT_EMAIL_USER,
             pass: process.env.EMAIL_PASSWORD || process.env.WECHAT_EMAIL_PASSWORD
           },
+          requireTLS: true,
+          tls: { rejectUnauthorized: true },
+          disableFileAccess: true,
+          disableUrlAccess: true,
           connectionTimeout: 30000,
           greetingTimeout: 30000,
           socketTimeout: 30000
         };
-        console.log('使用手动配置的SMTP设置:', { host: config.host, port: config.port, secure: config.secure });
+        console.error('使用手动配置的SMTP设置:', { host: config.host, port: config.port, secure: config.secure });
         return nodemailer.createTransport(config);
       }
 
@@ -416,6 +358,10 @@ class UniversalEmailMCPServer {
           user: emailUser,
           pass: process.env.EMAIL_PASSWORD || process.env.WECHAT_EMAIL_PASSWORD
         },
+        requireTLS: true,
+        tls: { rejectUnauthorized: true },
+        disableFileAccess: true,
+        disableUrlAccess: true,
         connectionTimeout: 30000,
         greetingTimeout: 30000,
         socketTimeout: 30000
@@ -426,7 +372,7 @@ class UniversalEmailMCPServer {
         throw new Error('缺少邮箱密码配置。请设置 EMAIL_PASSWORD 环境变量。');
       }
 
-      console.log(`自动配置SMTP设置 - 邮箱类型: ${emailConfig.name}`, { host: config.host, port: config.port, secure: config.secure });
+      console.error(`自动配置SMTP设置 - 邮箱类型: ${emailConfig.name}`, { host: config.host, port: config.port, secure: config.secure });
       return nodemailer.createTransport(config);
     } catch (error) {
       console.error('创建SMTP传输器失败:', error.message);
@@ -444,10 +390,10 @@ class UniversalEmailMCPServer {
           password: process.env.EMAIL_PASSWORD || process.env.WECHAT_EMAIL_PASSWORD,
           host: process.env.EMAIL_IMAP_HOST || process.env.WECHAT_EMAIL_HOST?.replace('smtp', 'imap'),
           port: parseInt(process.env.EMAIL_IMAP_PORT) || 993,
-          tls: (process.env.EMAIL_IMAP_SECURE !== 'false'),
-          tlsOptions: { rejectUnauthorized: false }
+          tls: true,
+          tlsOptions: { rejectUnauthorized: true }
         };
-        console.log('使用手动配置的IMAP设置:', { host: config.host, port: config.port });
+        console.error('使用手动配置的IMAP设置:', { host: config.host, port: config.port });
         return new Imap(config);
       }
 
@@ -470,8 +416,8 @@ class UniversalEmailMCPServer {
         password: process.env.EMAIL_PASSWORD || process.env.WECHAT_EMAIL_PASSWORD,
         host: emailConfig.imap.host,
         port: emailConfig.imap.port,
-        tls: emailConfig.imap.secure,
-        tlsOptions: { rejectUnauthorized: false }
+        tls: true,
+        tlsOptions: { rejectUnauthorized: true }
       };
 
       // 验证必需的配置项
@@ -479,7 +425,7 @@ class UniversalEmailMCPServer {
         throw new Error('缺少邮箱密码配置。请设置 EMAIL_PASSWORD 环境变量。');
       }
 
-      console.log(`自动配置IMAP设置 - 邮箱类型: ${emailConfig.name}`, { host: config.host, port: config.port });
+      console.error(`自动配置IMAP设置 - 邮箱类型: ${emailConfig.name}`, { host: config.host, port: config.port });
       return new Imap(config);
     } catch (error) {
       console.error('创建IMAP连接失败:', error.message);
@@ -495,11 +441,11 @@ class UniversalEmailMCPServer {
         const config = {
           hostname: process.env.EMAIL_POP3_HOST || process.env.WECHAT_EMAIL_HOST?.replace('smtp', 'pop'),
           port: parseInt(process.env.EMAIL_POP3_PORT) || 995,
-          tls: (process.env.EMAIL_POP3_SECURE !== 'false'),
+          tls: true,
           username: process.env.EMAIL_USER || process.env.WECHAT_EMAIL_USER,
           password: process.env.EMAIL_PASSWORD || process.env.WECHAT_EMAIL_PASSWORD
         };
-        console.log('使用手动配置的POP3设置:', { hostname: config.hostname, port: config.port });
+        console.error('使用手动配置的POP3设置:', { hostname: config.hostname, port: config.port });
         return config;
       }
 
@@ -520,7 +466,7 @@ class UniversalEmailMCPServer {
       const config = {
         hostname: emailConfig.pop3.host,
         port: emailConfig.pop3.port,
-        tls: emailConfig.pop3.secure,
+        tls: true,
         username: emailUser,
         password: process.env.EMAIL_PASSWORD || process.env.WECHAT_EMAIL_PASSWORD
       };
@@ -530,7 +476,7 @@ class UniversalEmailMCPServer {
         throw new Error('缺少邮箱密码配置。请设置 EMAIL_PASSWORD 环境变量。');
       }
 
-      console.log(`自动配置POP3设置 - 邮箱类型: ${emailConfig.name}`, { hostname: config.hostname, port: config.port });
+      console.error(`自动配置POP3设置 - 邮箱类型: ${emailConfig.name}`, { hostname: config.hostname, port: config.port });
       return config;
     } catch (error) {
       console.error('创建POP3连接失败:', error.message);
@@ -554,23 +500,50 @@ class UniversalEmailMCPServer {
       html
     };
 
-    // 处理附件
+    // 顺序读取经过校验的文件句柄，并限制整封邮件的附件内存占用。
     if (attachments && attachments.length > 0) {
-      mailOptions.attachments = attachments.map(att => {
-        if (att.content) {
-          return {
-            filename: att.filename,
-            content: att.content,
-            encoding: 'base64'
-          };
-        } else if (att.path) {
-          return {
-            filename: att.filename,
-            path: att.path
-          };
+      let bytes = 0;
+      mailOptions.attachments = [];
+      for (const att of attachments) {
+        if (att.content !== undefined) {
+          bytes += Buffer.byteLength(att.content, 'base64');
+          if (bytes > MAX_ATTACHMENT_BYTES) throw new Error('附件总大小上限为 25 MiB');
+          mailOptions.attachments.push({ filename: att.filename, content: att.content, encoding: 'base64' });
+          continue;
         }
-        return att;
-      });
+        if (!process.env.EMAIL_ATTACHMENTS_DIR) {
+          throw new Error('文件附件需要在本机设置 EMAIL_ATTACHMENTS_DIR');
+        }
+        const directory = await fs.realpath(process.env.EMAIL_ATTACHMENTS_DIR);
+        const file = await fs.realpath(resolve(directory, att.path));
+        const location = relative(directory, file);
+        if (location === '..' || location.startsWith(`..${sep}`) || isAbsolute(location)) {
+          throw new Error('附件必须位于 EMAIL_ATTACHMENTS_DIR 内');
+        }
+        const expected = await fs.stat(file);
+        if (!expected.isFile()) throw new Error('附件必须是普通文件');
+        if (bytes + expected.size > MAX_ATTACHMENT_BYTES) throw new Error('附件总大小上限为 25 MiB');
+        const handle = await fs.open(file, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+        try {
+          const opened = await handle.stat();
+          const currentPath = await fs.realpath(file);
+          const current = await fs.stat(currentPath);
+          if (!opened.isFile() || currentPath !== file
+              || opened.dev !== expected.dev || opened.ino !== expected.ino
+              || opened.dev !== current.dev || opened.ino !== current.ino) {
+            throw new Error('附件在校验期间发生变化');
+          }
+          const chunks = [];
+          for await (const chunk of handle.createReadStream({ autoClose: false })) {
+            bytes += chunk.length;
+            if (bytes > MAX_ATTACHMENT_BYTES) throw new Error('附件总大小上限为 25 MiB');
+            chunks.push(chunk);
+          }
+          mailOptions.attachments.push({ filename: att.filename, content: Buffer.concat(chunks) });
+        } finally {
+          await handle.close();
+        }
+      }
     }
 
     const result = await transporter.sendMail(mailOptions);
@@ -597,7 +570,7 @@ class UniversalEmailMCPServer {
       const provider = this.detectEmailProvider(email, emailType);
       if (provider && EMAIL_CONFIGS[provider]) {
         const config = EMAIL_CONFIGS[provider];
-        console.log(`使用${config.name}的${config.usePOP3 ? 'POP3' : 'IMAP'}协议获取邮件`);
+        console.error(`使用${config.name}的${config.usePOP3 ? 'POP3' : 'IMAP'}协议获取邮件`);
         if (config.usePOP3) {
           return this.getRecentEmailsPOP3(args);
         }
@@ -608,7 +581,7 @@ class UniversalEmailMCPServer {
     try {
       return await this.getRecentEmailsIMAP(args);
     } catch (error) {
-      console.log('IMAP失败，尝试POP3:', error.message);
+      console.error('IMAP失败，尝试POP3:', error.message);
       return this.getRecentEmailsPOP3(args);
     }
   }
@@ -760,6 +733,7 @@ class UniversalEmailMCPServer {
       const config = this.createPOP3Connection();
       const pop3 = new POP3Client(config.port, config.hostname, {
         enabletls: config.tls,
+        ignoretlserrs: false,
         debug: false
       });
 
@@ -955,7 +929,7 @@ class UniversalEmailMCPServer {
     });
   }
 
-  // 设置邮箱账号（自动配置）
+  // 设置邮箱账号（仅供本地 JavaScript 调用）
   async setupEmailAccount(args) {
     const { email, password, provider } = args;
 
@@ -1026,9 +1000,9 @@ class UniversalEmailMCPServer {
     }
 
     result += `💡 使用方法:\n`;
-    result += `1. 使用 setup_email_account 工具\n`;
-    result += `2. 填写完整邮箱地址和密码/授权码\n`;
-    result += `3. 系统会自动识别并配置对应的邮箱服务器\n\n`;
+    result += `1. 在本机启动配置中设置 EMAIL_USER 和 EMAIL_PASSWORD\n`;
+    result += `2. 企业邮箱设置 EMAIL_TYPE，或用 EMAIL_SMTP_HOST / EMAIL_IMAP_HOST 指定服务器\n`;
+    result += `3. 重启 MCP 服务后，系统会自动识别对应的邮箱服务器\n\n`;
     result += `⚠️  注意: 请确保已在对应邮箱中开启POP3/IMAP/SMTP服务并获取授权码！`;
 
     return {
@@ -1036,39 +1010,6 @@ class UniversalEmailMCPServer {
         type: 'text',
         text: result
       }]
-    };
-  }
-
-  // 配置邮箱服务器
-  async configureEmailServer(args) {
-    const { smtpHost, smtpPort, smtpSecure, imapHost, imapPort, imapSecure, user, password } = args;
-
-    // 更新环境变量
-    if (smtpHost) process.env.EMAIL_SMTP_HOST = smtpHost;
-    if (smtpPort) process.env.EMAIL_SMTP_PORT = smtpPort.toString();
-    if (smtpSecure !== undefined) process.env.EMAIL_SMTP_SECURE = smtpSecure.toString();
-    if (imapHost) process.env.EMAIL_IMAP_HOST = imapHost;
-    if (imapPort) process.env.EMAIL_IMAP_PORT = imapPort.toString();
-    if (imapSecure !== undefined) process.env.EMAIL_IMAP_SECURE = imapSecure.toString();
-    if (user) process.env.EMAIL_USER = user;
-    if (password) process.env.EMAIL_PASSWORD = password;
-
-    let configInfo = '邮箱配置已更新：\n';
-    configInfo += `SMTP服务器: ${process.env.EMAIL_SMTP_HOST || '未设置'}\n`;
-    configInfo += `SMTP端口: ${process.env.EMAIL_SMTP_PORT || '未设置'}\n`;
-    configInfo += `SMTP SSL: ${process.env.EMAIL_SMTP_SECURE || '未设置'}\n`;
-    configInfo += `IMAP服务器: ${process.env.EMAIL_IMAP_HOST || '未设置'}\n`;
-    configInfo += `IMAP端口: ${process.env.EMAIL_IMAP_PORT || '未设置'}\n`;
-    configInfo += `IMAP SSL: ${process.env.EMAIL_IMAP_SECURE || '未设置'}\n`;
-    configInfo += `用户: ${user || '未更新'}`;
-
-    return {
-      content: [
-        {
-          type: 'text',
-          text: configInfo
-        }
-      ]
     };
   }
 
@@ -1148,7 +1089,7 @@ class UniversalEmailMCPServer {
 export { UniversalEmailMCPServer };
 
 // 如果直接运行此文件，启动服务器
-if (import.meta.url.endsWith(process.argv[1]) || import.meta.url.includes('index.js')) {
+if (process.argv[1] && import.meta.url === pathToFileURL(await fs.realpath(process.argv[1])).href) {
   const server = new UniversalEmailMCPServer();
   server.run().catch(console.error);
-} 
+}

@@ -23,7 +23,7 @@ npx mcp-email
 - 📤 **邮件发送**: 支持发送HTML和纯文本邮件
 - 👥 **多收件人**: 支持多个收件人、抄送、密送
 - 📎 **附件支持**: 支持文件附件和Base64编码内容
-- 🔧 **动态配置**: 支持运行时配置邮箱服务器
+- 🔧 **本机配置**: 通过启动环境变量自动识别邮箱或指定服务器
 - 🔍 **连接测试**: 内置SMTP服务器连接测试
 - 🛡️ **安全认证**: 支持微信企业邮箱授权码认证
 - ⚡ **高性能**: 优化的连接超时和重试机制
@@ -40,9 +40,31 @@ npx mcp-email
 
 ## 📋 系统要求
 
-- Node.js 16.x 或更高版本
+- Node.js 20.19.0 或更高版本
 - 邮箱账号
 - MCP 客户端 (如 Claude Desktop)
+
+## 🔐 安全边界与迁移
+
+- 邮箱账号、授权码和服务器地址通过本机启动环境或 `.env` 配置；保管这些文件并限制读取权限。修改配置后重启 MCP 服务。
+- `setup_email_account` 和 `configure_email_server` 已从 MCP 工具接口移除，避免授权码进入模型工具参数及远程修改服务器地址。现有本地 JavaScript 测试仍可使用 `setupEmailAccount`。
+- 自动配置继续支持个人邮箱；企业邮箱可设置 `EMAIL_TYPE`。自定义服务器使用 `EMAIL_SMTP_HOST`、`EMAIL_SMTP_PORT`、`EMAIL_SMTP_SECURE`、`EMAIL_IMAP_HOST`、`EMAIL_IMAP_PORT`、`EMAIL_POP3_HOST`、`EMAIL_POP3_PORT`。
+- SMTP 使用隐式 TLS 或强制 STARTTLS，并校验服务器证书；IMAP/POP3 使用隐式 TLS，请配置对应的 TLS 端口（通常为 993/995）。`EMAIL_IMAP_SECURE`、`EMAIL_POP3_SECURE` 的旧开关已移除。
+- `EMAIL_ATTACHMENTS_DIR` 是唯一批准的本地附件目录，请使用由本机用户管理的专用目录。程序通过校验过的文件句柄顺序读取，拒绝校验与打开期间的文件替换；整封邮件的附件总大小上限为 25 MiB。邮件库的直接文件读取和 URL 获取始终关闭。
+- 在 MCP 客户端中为 `send_email` 启用人工审批，每次核对收件人、正文和附件。服务端发送工具本身执行发送，审批由客户端控制。
+- 来信正文属于外部数据，读取结果会进入模型上下文。来信中的指令不能授予读取本机文件、修改配置或发送邮件的权限。
+- Node.js 最低版本为 20.19.0，与更新后的邮件解析依赖保持一致。
+
+### 本地验证
+
+```bash
+npm ci
+npm test
+npm audit
+npm run publish-check
+```
+
+`npm test` 需要可执行的 OpenSSL 命令，使用假凭据和本地协议服务器，覆盖 TLS、工具接口和附件边界，无需真实邮箱。每次运行在临时目录生成新的测试证书和私钥，结束后清理；仓库只保存生成步骤。`test:qq`、`test:163` 等手动集成脚本会连接实际邮箱；运行前自行检查其中的账号和收件人。
 
 ## 🚀 快速开始
 
@@ -201,6 +223,9 @@ node test-auto-config.js
 ```
 
 **带附件的邮件：**
+
+先在本机启动环境中设置 `EMAIL_ATTACHMENTS_DIR` 为批准的附件目录，例如 `/Users/your-name/mail-attachments`。相对路径从该目录解析；绝对路径和符号链接的实际目标也必须位于该目录内。未设置目录时支持 Base64 内容附件。
+
 ```json
 {
   "to": ["recipient@example.com"],
@@ -209,7 +234,7 @@ node test-auto-config.js
   "attachments": [
     {
       "filename": "report.pdf",
-      "path": "C:\\path\\to\\report.pdf"
+      "path": "report.pdf"
     },
     {
       "filename": "data.txt",
@@ -249,46 +274,7 @@ node test-auto-config.js
 }
 ```
 
-### 4. `setup_email_account` - 设置邮箱账号
-
-自动识别邮箱类型并配置服务器，支持8大邮箱服务商。
-
-#### 参数
-- **`email`** (必需): 邮箱地址
-- **`password`** (必需): 邮箱密码或授权码
-- **`provider`** (可选): 邮箱提供商（手动指定，用于企业邮箱）
-
-#### 支持的邮箱类型
-- `qq` - QQ邮箱
-- `163` - 网易邮箱
-- `gmail` - Gmail
-- `outlook` - Outlook/Hotmail
-- `exmail` - 腾讯企业邮箱
-- `netease-enterprise` - 网易企业邮箱
-- `aliyun` - 阿里云邮箱
-- `sina` - 新浪邮箱
-- `sohu` - 搜狐邮箱
-
-#### 使用示例
-
-**个人邮箱（自动识别）：**
-```json
-{
-  "email": "user@qq.com",
-  "password": "your-auth-code"
-}
-```
-
-**企业邮箱（手动指定）：**
-```json
-{
-  "email": "user@company.com",
-  "password": "your-enterprise-auth-code",
-  "provider": "exmail"
-}
-```
-
-### 5. `list_supported_providers` - 列出支持的邮箱
+### 4. `list_supported_providers` - 列出支持的邮箱
 
 查看所有支持的邮箱服务商及其配置信息。
 
@@ -300,32 +286,7 @@ node test-auto-config.js
 {}
 ```
 
-### 6. `configure_email_server` - 手动配置服务器
-
-手动配置邮箱服务器设置（高级用户使用）。
-
-#### 参数
-- **`user`** (必需): 邮箱账号
-- **`password`** (必需): 邮箱密码或授权码
-- **`smtpHost`** (可选): SMTP服务器地址
-- **`smtpPort`** (可选): SMTP端口
-- **`smtpSecure`** (可选): 是否使用SSL
-- **`imapHost`** (可选): IMAP服务器地址
-- **`imapPort`** (可选): IMAP端口
-- **`imapSecure`** (可选): 是否使用SSL
-
-#### 使用示例
-```json
-{
-  "user": "your-email@domain.com",
-  "password": "your-password",
-  "smtpHost": "smtp.domain.com",
-  "smtpPort": 465,
-  "smtpSecure": true
-}
-```
-
-### 7. `test_email_connection` - 测试连接
+### 5. `test_email_connection` - 测试连接
 
 测试邮箱服务器连接状态。
 
@@ -348,7 +309,7 @@ node test-auto-config.js
 
 | 邮箱类型 | SMTP服务器 | SMTP端口 | IMAP服务器 | IMAP端口 | 推荐协议 |
 |---------|------------|----------|------------|----------|----------|
-| QQ邮箱 | smtp.qq.com | 587 | imap.qq.com | 993 | IMAP |
+| QQ邮箱 | smtp.qq.com | 465 | imap.qq.com | 993 | IMAP |
 | 网易邮箱 | smtp.163.com | 465 | imap.163.com | 993 | POP3* |
 | Gmail* | smtp.gmail.com | 587 | imap.gmail.com | 993 | IMAP |
 | Outlook | smtp-mail.outlook.com | 587 | outlook.office365.com | 993 | IMAP |
@@ -420,7 +381,7 @@ node test-email-type.js
 1. **查看详细日志**: 系统会自动输出配置和连接信息
 2. **使用测试工具**: 通过 `test_email_connection` 诊断问题
 3. **检查邮箱类型**: 使用 `list_supported_providers` 确认支持
-4. **逐步配置**: 先使用 `setup_email_account` 自动配置
+4. **本机配置**: 设置 `EMAIL_USER`、`EMAIL_PASSWORD` 和可选的 `EMAIL_TYPE` 后重启服务
 
 ## 📁 项目结构
 
