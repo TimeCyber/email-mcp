@@ -72,6 +72,14 @@ const EMAIL_CONFIGS = {
     pop3: { host: 'pop.mxhichina.com', port: 995, secure: true },
     usePOP3: false
   },
+  'aliyun-enterprise': {
+    name: '阿里云企业邮箱',
+    domains: [], // 企业域名不固定
+    smtp: { host: 'smtp.qiye.aliyun.com', port: 465, secure: true },
+    imap: { host: 'imap.qiye.aliyun.com', port: 993, secure: true },
+    pop3: { host: 'pop.qiye.aliyun.com', port: 995, secure: true },
+    usePOP3: false
+  },
   'sina': {
     name: '新浪邮箱',
     domains: ['sina.com', 'sina.cn'],
@@ -260,7 +268,7 @@ class UniversalEmailMCPServer {
                 },
                 provider: {
                   type: 'string',
-                  enum: ['qq', '163', 'gmail', 'outlook', 'exmail', 'aliyun', 'sina', 'sohu'], // 暂时注释掉: 'netease-enterprise'
+                  enum: ['qq', '163', 'gmail', 'outlook', 'exmail', 'aliyun', 'aliyun-enterprise', 'sina', 'sohu'], // 暂时注释掉: 'netease-enterprise'
                   description: '邮箱提供商（可选，不填写则自动识别）'
                 }
               },

@@ -1,6 +1,6 @@
 {
   "name": "mcp-email",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "通用邮箱MCP服务器 - 支持QQ、163、Gmail（由于谷歌政策不支持OAuth2.0，所以无法使用）、Outlook、企业邮箱等多种邮箱服务商的自动配置和邮件发送功能",
   "main": "index.js",
   "type": "module",

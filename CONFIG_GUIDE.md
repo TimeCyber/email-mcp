@@ -41,10 +41,12 @@
 **企业邮箱类型**:
 - **`exmail`** - 腾讯企业邮箱（使用企业域名，但服务器为smtp.exmail.qq.com）
 - **`netease-enterprise`** - 网易企业邮箱（使用企业域名，但服务器为smtp.ym.163.com）
+- **`aliyun-enterprise`** - 阿里云企业邮箱（smtp.qiye.aliyun.com / imap.qiye.aliyun.com / pop.qiye.aliyun.com）
 
 💡 **企业邮箱重要提示**: 
 - 如果您的邮箱地址是 `user@company.com` 但使用腾讯企业邮箱服务 → 设置 `EMAIL_TYPE: "exmail"`
 - 如果您的邮箱地址是 `user@enterprise.com` 但使用网易企业邮箱服务 → 设置 `EMAIL_TYPE: "netease-enterprise"`
+- 如果您的邮箱地址是 `user@company.com` 但使用阿里云企业邮箱服务 → 设置 `EMAIL_TYPE: "aliyun-enterprise"`
 
 ### 2. `mcp-x_config_enterprise.json` - 企业邮箱专用配置
 ```json
@@ -146,6 +148,20 @@
 - 实际服务器: `smtphz.qiye.163.com`（网易企业邮箱）
 - 必须设置: `EMAIL_TYPE: "netease-enterprise"`
 --->
+
+#### 阿里云企业邮箱示例
+```json
+{
+  "EMAIL_USER": "user@yourcompany.com",
+  "EMAIL_PASSWORD": "your-enterprise-auth-code",
+  "EMAIL_TYPE": "aliyun-enterprise"
+}
+```
+- 邮箱地址: `user@yourcompany.com`（企业域名）
+- SMTP: `smtp.qiye.aliyun.com:465`（SSL）
+- IMAP: `imap.qiye.aliyun.com:993`（SSL）
+- POP3: `pop.qiye.aliyun.com:995`（SSL）
+- 必须设置: `EMAIL_TYPE: "aliyun-enterprise"`
 
 ### 3. 复制到MCP-X或其他MCP客户端
 将配置内容复制到您的MCP-X或其他MCP客户端配置文件中。

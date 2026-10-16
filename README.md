@@ -6,7 +6,7 @@
 
 一个让AI轻松接管邮箱的通用MCP服务器，基于 Model Context Protocol (MCP) 构建，支持在 MCP-X、Claude Desktop 等 MCP 客户端中使用。
 
-**支持多种邮箱服务商自动配置**：QQ邮箱、163邮箱、Gmail、Outlook、腾讯企业邮箱、网易企业邮箱、阿里云邮箱、新浪邮箱、搜狐邮箱等。
+**支持多种邮箱服务商自动配置**：QQ邮箱、163邮箱、Gmail、Outlook、腾讯企业邮箱、网易企业邮箱、**阿里云企业邮箱**、阿里云邮箱、新浪邮箱、搜狐邮箱等。
 
 ## 📦 快速安装
 
@@ -34,7 +34,7 @@ npx mcp-email
 
 📖 **[CONFIG_GUIDE.md](./CONFIG_GUIDE.md)** - 完整配置指南，包含：
 - 📧 163邮箱详细配置教程
-- 🏢 微信企业邮箱配置指南  
+- 🏢 腾讯 / 阿里云等企业邮箱配置指南
 - 🌐 QQ邮箱、Gmail等主流邮箱配置
 - 🛠️ 故障排除和常见问题解决
 
@@ -111,7 +111,7 @@ npm install
 }
 ```
 
-**企业邮箱配置：**
+**企业邮箱配置（腾讯企业邮箱）：**
 ```json
 {
   "mcpServers": {
@@ -127,6 +127,24 @@ npm install
   }
 }
 ```
+
+**阿里云企业邮箱配置：**
+```json
+{
+  "mcpServers": {
+    "aliyun-enterprise-email": {
+      "command": "node",
+      "args": ["F:\\path\\to\\email-mcp\\index.js"],
+      "env": {
+        "EMAIL_USER": "user@company.com",
+        "EMAIL_PASSWORD": "your-enterprise-auth-code",
+        "EMAIL_TYPE": "aliyun-enterprise"
+      }
+    }
+  }
+}
+```
+> 服务器：SMTP `smtp.qiye.aliyun.com:465`、IMAP `imap.qiye.aliyun.com:993`、POP3 `pop.qiye.aliyun.com:995`（均启用 SSL）
 
 #### 4. 测试配置
 
@@ -147,6 +165,12 @@ node test-auto-config.js
 4. 进入 **"设置"** → **"收发信设置"** → **"设置方法"**
 5. 开启 **"POP/IMAP/SMTP服务"**
 
+**阿里云企业邮箱：**
+1. 登录 [阿里云企业邮箱](https://qiye.aliyun.com/) 管理后台
+2. 开启 **POP/IMAP/SMTP** 服务
+3. 获取客户端授权码（或按管理员要求使用登录密码）
+4. MCP 配置中设置 `EMAIL_TYPE: "aliyun-enterprise"`
+
 **QQ邮箱：**
 1. 登录QQ邮箱，进入**"设置"** → **"账户"**
 2. 开启**"POP3/IMAP/SMTP/Exchange/CardDAV/CalDAV服务"**
@@ -158,7 +182,7 @@ node test-auto-config.js
 3. 设置客户端授权密码
 
 💡 **关键提示**: 
-- 企业邮箱必须设置 `EMAIL_TYPE` 字段！
+- 企业邮箱必须设置 `EMAIL_TYPE` 字段（如腾讯 `"exmail"`、阿里云 `"aliyun-enterprise"`）！
 - 个人邮箱可以使用 `EMAIL_TYPE: "auto"` 自动识别
 
 📖 **[CONFIG_GUIDE.md](./CONFIG_GUIDE.md)** - 完整配置指南，包含所有邮箱类型详细说明
@@ -251,7 +275,7 @@ node test-auto-config.js
 
 ### 4. `setup_email_account` - 设置邮箱账号
 
-自动识别邮箱类型并配置服务器，支持8大邮箱服务商。
+自动识别邮箱类型并配置服务器，支持 QQ / 163 / Gmail / Outlook / 腾讯企业邮 / 阿里云企业邮等多种服务商。
 
 #### 参数
 - **`email`** (必需): 邮箱地址
@@ -266,6 +290,7 @@ node test-auto-config.js
 - `exmail` - 腾讯企业邮箱
 - `netease-enterprise` - 网易企业邮箱
 - `aliyun` - 阿里云邮箱
+- `aliyun-enterprise` - 阿里云企业邮箱
 - `sina` - 新浪邮箱
 - `sohu` - 搜狐邮箱
 
@@ -285,6 +310,15 @@ node test-auto-config.js
   "email": "user@company.com",
   "password": "your-enterprise-auth-code",
   "provider": "exmail"
+}
+```
+
+**阿里云企业邮箱：**
+```json
+{
+  "email": "user@company.com",
+  "password": "your-enterprise-auth-code",
+  "provider": "aliyun-enterprise"
 }
 ```
 
@@ -353,8 +387,11 @@ node test-auto-config.js
 | Gmail* | smtp.gmail.com | 587 | imap.gmail.com | 993 | IMAP |
 | Outlook | smtp-mail.outlook.com | 587 | outlook.office365.com | 993 | IMAP |
 | 腾讯企业邮箱 | smtp.exmail.qq.com | 465 | imap.exmail.qq.com | 993 | IMAP |
-<!--- | 网易企业邮箱 | smtphz.qiye.163.com | 994 | imaphz.qiye.163.com | 993 | POP3* | --->
 | 阿里云邮箱 | smtp.mxhichina.com | 465 | imap.mxhichina.com | 993 | IMAP |
+| 阿里云企业邮箱 | smtp.qiye.aliyun.com | 465 | imap.qiye.aliyun.com | 993 | IMAP |
+
+<!--- | 网易企业邮箱 | smtphz.qiye.163.com | 994 | imaphz.qiye.163.com | 993 | POP3* | --->
+
 
 ***网易邮箱（163/126/yeah）自动使用POP3协议以避免"Unsafe Login"错误**
 
@@ -398,6 +435,7 @@ node test-auto-config.js
 **解决方案**:
 - 为企业邮箱设置正确的 `EMAIL_TYPE` 字段
 - 腾讯企业邮箱设置为 `"exmail"`
+- 阿里云企业邮箱设置为 `"aliyun-enterprise"`
 - 网易企业邮箱设置为 `"netease-enterprise"`
 
 ### 📋 诊断工具
@@ -475,7 +513,7 @@ node test-email-type.js
 - 📝 **文档改进**: 帮助完善使用文档
 
 ### 📊 项目状态
-- ✅ **生产就绪**: 支持8大主流邮箱服务商
+- ✅ **生产就绪**: 支持 QQ、163、Gmail、Outlook、腾讯企业邮、阿里云企业邮等主流邮箱服务商
 - 🔄 **持续更新**: 根据用户反馈不断改进
 - 🛡️ **安全保障**: 支持SSL/TLS加密和授权码认证
 
