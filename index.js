@@ -10,7 +10,16 @@ import POP3Client from 'poplib';
 import dotenv from 'dotenv';
 
 // 加载环境变量
-dotenv.config();
+// quiet: true 用于抑制 dotenv v17 的 "◇ injected env" 提示横幅：它打在 stdout，
+// 会污染 stdio 传输的 JSON-RPC 协议通道。
+dotenv.config({ quiet: true });
+
+// ⚠️ stdio 传输下，stdout 就是 JSON-RPC 协议通道本身。任何非 JSON 输出都会让
+// 客户端解析失败（表现为 initialize / handshake 失败，连接直接被断开）。
+// 因此本文件所有诊断日志必须走 console.error（stderr），请不要改回 console.log。
+//
+// Under the stdio transport, stdout IS the JSON-RPC channel: any non-JSON line
+// breaks the client's handshake. All diagnostic logging here must go to stderr.
 
 // 邮箱配置映射
 const EMAIL_CONFIGS = {
@@ -119,7 +128,7 @@ class UniversalEmailMCPServer {
   detectEmailProvider(email, manualType = null) {
     // 优先使用手动指定的邮箱类型
     if (manualType && EMAIL_CONFIGS[manualType]) {
-      console.log(`使用手动指定的邮箱类型: ${manualType} (${EMAIL_CONFIGS[manualType].name})`);
+      console.error(`使用手动指定的邮箱类型: ${manualType} (${EMAIL_CONFIGS[manualType].name})`);
       return manualType;
     }
 
@@ -129,12 +138,12 @@ class UniversalEmailMCPServer {
     
     for (const [provider, config] of Object.entries(EMAIL_CONFIGS)) {
       if (config.domains.includes(domain)) {
-        console.log(`自动检测到邮箱类型: ${provider} (${config.name})`);
+        console.error(`自动检测到邮箱类型: ${provider} (${config.name})`);
         return provider;
       }
     }
     
-    console.log(`未能识别邮箱类型，域名: ${domain}`);
+    console.error(`未能识别邮箱类型，域名: ${domain}`);
     return null;
   }
 
@@ -398,7 +407,7 @@ class UniversalEmailMCPServer {
           greetingTimeout: 30000,
           socketTimeout: 30000
         };
-        console.log('使用手动配置的SMTP设置:', { host: config.host, port: config.port, secure: config.secure });
+        console.error('使用手动配置的SMTP设置:', { host: config.host, port: config.port, secure: config.secure });
         return nodemailer.createTransport(config);
       }
 
@@ -434,7 +443,7 @@ class UniversalEmailMCPServer {
         throw new Error('缺少邮箱密码配置。请设置 EMAIL_PASSWORD 环境变量。');
       }
 
-      console.log(`自动配置SMTP设置 - 邮箱类型: ${emailConfig.name}`, { host: config.host, port: config.port, secure: config.secure });
+      console.error(`自动配置SMTP设置 - 邮箱类型: ${emailConfig.name}`, { host: config.host, port: config.port, secure: config.secure });
       return nodemailer.createTransport(config);
     } catch (error) {
       console.error('创建SMTP传输器失败:', error.message);
@@ -455,7 +464,7 @@ class UniversalEmailMCPServer {
           tls: (process.env.EMAIL_IMAP_SECURE !== 'false'),
           tlsOptions: { rejectUnauthorized: false }
         };
-        console.log('使用手动配置的IMAP设置:', { host: config.host, port: config.port });
+        console.error('使用手动配置的IMAP设置:', { host: config.host, port: config.port });
         return new Imap(config);
       }
 
@@ -487,7 +496,7 @@ class UniversalEmailMCPServer {
         throw new Error('缺少邮箱密码配置。请设置 EMAIL_PASSWORD 环境变量。');
       }
 
-      console.log(`自动配置IMAP设置 - 邮箱类型: ${emailConfig.name}`, { host: config.host, port: config.port });
+      console.error(`自动配置IMAP设置 - 邮箱类型: ${emailConfig.name}`, { host: config.host, port: config.port });
       return new Imap(config);
     } catch (error) {
       console.error('创建IMAP连接失败:', error.message);
@@ -507,7 +516,7 @@ class UniversalEmailMCPServer {
           username: process.env.EMAIL_USER || process.env.WECHAT_EMAIL_USER,
           password: process.env.EMAIL_PASSWORD || process.env.WECHAT_EMAIL_PASSWORD
         };
-        console.log('使用手动配置的POP3设置:', { hostname: config.hostname, port: config.port });
+        console.error('使用手动配置的POP3设置:', { hostname: config.hostname, port: config.port });
         return config;
       }
 
@@ -538,7 +547,7 @@ class UniversalEmailMCPServer {
         throw new Error('缺少邮箱密码配置。请设置 EMAIL_PASSWORD 环境变量。');
       }
 
-      console.log(`自动配置POP3设置 - 邮箱类型: ${emailConfig.name}`, { hostname: config.hostname, port: config.port });
+      console.error(`自动配置POP3设置 - 邮箱类型: ${emailConfig.name}`, { hostname: config.hostname, port: config.port });
       return config;
     } catch (error) {
       console.error('创建POP3连接失败:', error.message);
@@ -605,7 +614,7 @@ class UniversalEmailMCPServer {
       const provider = this.detectEmailProvider(email, emailType);
       if (provider && EMAIL_CONFIGS[provider]) {
         const config = EMAIL_CONFIGS[provider];
-        console.log(`使用${config.name}的${config.usePOP3 ? 'POP3' : 'IMAP'}协议获取邮件`);
+        console.error(`使用${config.name}的${config.usePOP3 ? 'POP3' : 'IMAP'}协议获取邮件`);
         if (config.usePOP3) {
           return this.getRecentEmailsPOP3(args);
         }
@@ -616,7 +625,7 @@ class UniversalEmailMCPServer {
     try {
       return await this.getRecentEmailsIMAP(args);
     } catch (error) {
-      console.log('IMAP失败，尝试POP3:', error.message);
+      console.error('IMAP失败，尝试POP3:', error.message);
       return this.getRecentEmailsPOP3(args);
     }
   }
